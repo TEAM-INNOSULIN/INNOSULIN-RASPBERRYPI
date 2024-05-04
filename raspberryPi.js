@@ -1,8 +1,10 @@
 const mqtt = require('mqtt');
+const readline = require('readline');
 const { Gpio } = require('onoff');
+const schedule = require('node-schedule');
 const client = mqtt.connect('mqtt://localhost:1883'); // 브로커가 로컬에서 실행
 
-const alertPin = new Gpio(23, 'out'); // GPIO 핀 4번을 사용 (사용 가능한 GPIO 번호를 확인하세요)
+const alertPin = new Gpio(23, 'out'); // GPIO 핀을 출력에 사용
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -52,6 +54,7 @@ client.on('message', (topic, message) => {
         if (currentStep < recommendedStep) {
             alertPin.writeSync(1); // 알림 켜기
             setTimeout(() => alertPin.writeSync(0), 3000); // 3초 후 알림 끄기
+            //console.log('success');
         }
     }
 });
