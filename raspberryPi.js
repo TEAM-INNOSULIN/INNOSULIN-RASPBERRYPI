@@ -4,7 +4,7 @@ const { Gpio } = require('onoff');
 const schedule = require('node-schedule');
 const client = mqtt.connect('mqtt://localhost:1883'); // 브로커가 로컬에서 실행
 
-const alertPin = new Gpio(23, 'out'); // GPIO 핀을 출력에 사용
+const alertPin = new Gpio(12, 'out'); // GPIO 핀을 출력에 사용
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -40,7 +40,7 @@ client.on('connect', async () => {
 });
 
 function sendIpToEc2(ipAddress) {
-    return axios.post('http://ec2-43-201-111-28.ap-northeast-2.compute.amazonaws.com/receiveIp', { ip: ipAddress })
+    return axios.post('https://3066-59-6-127-176.ngrok-free.app/receiveIp', { ip: ipAddress })
         .then(response => console.log('IP sent to EC2:', response.data))
         .catch(error => console.error('Failed to send IP to EC2:', error));
 }
