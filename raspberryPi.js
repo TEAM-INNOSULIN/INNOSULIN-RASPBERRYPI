@@ -42,7 +42,7 @@ client.on('connect', async () => {
 });
 
 function sendIpToEc2(ipAddress) {
-    return axios.post('https://3066-59-6-127-176.ngrok-free.app/receiveIp', { ip: ipAddress })
+    return axios.post('https://1ab2-59-6-127-176.ngrok-free.app:3000/receiveIp', { ip: ipAddress })
         .then(response => console.log('IP sent to EC2:', response.data))
         .catch(error => console.error('Failed to send IP to EC2:', error));
 }
