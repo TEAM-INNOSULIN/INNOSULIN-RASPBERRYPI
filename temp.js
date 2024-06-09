@@ -7,8 +7,8 @@ const readline = require('readline');
 
 // Load certificates and keys
 const caFile = fs.readFileSync('/home/admin/certs/AmazonRootCA1.pem');
-const certFile = fs.readFileSync('/home/admin/certs/device.pem.crt');
-const keyFile = fs.readFileSync('/home/admin/certs/private.pem.key');
+const certFile = fs.readFileSync('/home/admin/certs/testconn/device.pem.crt');
+const keyFile = fs.readFileSync('/home/admin/certs/testconn/private.pem.key');
 
 const rl = readline.createInterface({
   input: process.stdin,
