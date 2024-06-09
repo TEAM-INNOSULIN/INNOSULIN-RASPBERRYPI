@@ -34,22 +34,22 @@ const client = mqtt.connect(options);
 
 client.on('connect', () => {
   console.log('Connected to AWS IoT');
-  client.subscribe('walkingData', { qos: 0 });
   alertPin.writeSync(0);
+  client.subscribe('walkingData', { qos: 0 });
   //publishData();
   // 키보드 입력 받기
-  rl.setPrompt('혈당 수치를 입력하세요 (종료하려면 Ctrl+C): ');
+  rl.setPrompt('Enter the blood sugar level (press Ctrl+C to exit): ');
   rl.prompt();
   rl.on('line', function (data) {
     // Enter를 누를 때마다 메시지 publish
     const message = JSON.stringify({ value: data });
     client.publish('bloodSugar', message, { qos: 1 }, (error) => {
       if (error) {
-        console.error('메시지 전송 실패:', error);
+        console.error('Failed to send message:', error);
       }
     });
 
-    console.log(`혈당 수치 '${data}'가 bloodSugar 토픽으로 전송되었습니다.`);
+    console.log(`Blood sugar level '${data}' has been sent to the 'bloodSugar' topic`);
     rl.prompt(); // 다시 입력 받기
   });
 });
