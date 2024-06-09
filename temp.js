@@ -16,7 +16,8 @@ const rl = readline.createInterface({
 });
 
 //sensor
-var alertPin = new GPIO(535, 'out'); //23번 pin
+var alertPin = new GPIO(535, 'out'); //23번 pin //1,2칸 사이
+alertPin.writeSync(1);
 
 
 // MQTT options including the SSL configuration
@@ -34,7 +35,6 @@ const client = mqtt.connect(options);
 
 client.on('connect', () => {
   console.log('Connected to AWS IoT');
-  alertPin.writeSync(0);
   client.subscribe('walkingData', { qos: 0 });
   //publishData();
   // 키보드 입력 받기
@@ -59,9 +59,9 @@ client.on('message', (topic, message) => {
     if (topic === 'walkingData') {
       const data = JSON.parse(message.toString());
       if (data.needMoreStep === true) {
-        alertPin.writeSync(1); // Turn on the GPIO pin
+        alertPin.writeSync(0); // Turn on the GPIO pin
         setTimeout(() => {
-          alertPin.writeSync(0); // Turn off the GPIO pin after 3 seconds
+          alertPin.writeSync(1); // Turn off the GPIO pin after 3 seconds
         }, 3000);
       }
     }
@@ -79,25 +79,4 @@ process.on('SIGINT', function() {
     client.end(true, () => {
       process.exit();
     });
-  });
-
-/*
-// Function to read input from the keypad (simulated by the command line)
-function readKeypadInput() {
-  rl.question('Enter data (Press # to finish): ', (input) => {
-    if (input.endsWith('#')) {
-      // Remove the last character '#' and prepare the message
-      const message = input.slice(0, -1); // remove the last character
-      client.publish('bloodSugar', JSON.stringify({ value: message }), { qos: 0, retain: false });
-      console.log('Data published:', message);
-      rl.close();
-    } else {
-      console.log('Data must end with # to finish input.');
-      readKeypadInput(); // Ask for input again
-    }
-  });
-}
-
-// Trigger the input reading function
-readKeypadInput();
-*/
+});
