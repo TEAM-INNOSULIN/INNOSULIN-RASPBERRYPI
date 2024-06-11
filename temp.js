@@ -17,7 +17,7 @@ const rl = readline.createInterface({
 
 const dataTemplate = {
   name: "홍길동",
-  clientID: "QD3B4O",
+  clientID: "23RXRT",
   phoneNumber: "010-1234-5678",
   familyNumber: [
     "010-9533-3333",
