@@ -1,77 +1,121 @@
+const fs = require('fs');
 const mqtt = require('mqtt');
-const readline = require('readline');
 const { Gpio } = require('onoff');
 var GPIO = require('onoff').Gpio;
 const schedule = require('node-schedule');
-const client = mqtt.connect('mqtt://localhost:1883'); // 브로커가 로컬에서 실행
+const readline = require('readline');
 
-var alertPin = new GPIO(535, 'out'); //23번 pin
-//const alertPin = new Gpio(12, 'out'); // GPIO 핀을 출력에 사용
+// Load certificates and keys
+const caFile = fs.readFileSync('/home/admin/certs/AmazonRootCA1.pem');
+const certFile = fs.readFileSync('/home/admin/certs/testconn/device.pem.crt');
+const keyFile = fs.readFileSync('/home/admin/certs/testconn/private.pem.key');
 
 const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout
+  input: process.stdin,
+  output: process.stdout
 });
 
-let bloodSugarReadings = []; // 입력받은 혈당 데이터를 저장할 배열
+const dataTemplate = {
+  name: "홍길동",
+  clientID: "23RXRT",
+  phoneNumber: "010-1234-5678",
+  familyNumber: [
+    "010-9533-3333",
+    "010-4352-1234"
+  ],
+  bloodSugar: []  // 여기에 입력받은 혈당 수치와 시간을 추가할 것입니다.
+};
 
-client.on('connect', async () => {
-    console.log('Connected to MQTT broker');
-    
-    // Subscribe to walking data
-    client.subscribe('walkingData');
+//sensor
+var alertPin = new GPIO(535, 'out'); //23번 pin //1,2칸 사이
+alertPin.writeSync(1);
 
-    // Send local IP address to EC2 server
-    try {
-        const ipAddress = await publicIp.v4();
-        console.log(`My IP Address is: ${ipAddress}`);
-        await sendIpToEc2(ipAddress);
-    } catch (error) {
-        console.error('Failed to get IP or send to EC2:', error);
-    }
 
-    // 매일 06:00, 12:00, 18:00에 저장된 혈당 데이터 발행
-    schedule.scheduleJob('0 6,12,18 * * *', () => {
-        if (bloodSugarReadings.length > 0) {
-            const dataToSend = JSON.stringify(bloodSugarReadings);
-            client.publish('bloodSugar', dataToSend);
-            console.log('Published blood sugar readings:', dataToSend);
-            bloodSugarReadings = []; // 데이터 발행 후 배열 비우기
-        }
+// MQTT options including the SSL configuration
+const options = {
+  host: 'a3mwllq937a5i6-ats.iot.us-east-1.amazonaws.com',
+  port: 8883,
+  protocol: 'mqtts',
+  ca: caFile,
+  cert: certFile,
+  key: keyFile
+};
+
+// Connect to the AWS IoT
+const client = mqtt.connect(options);
+
+client.on('connect', () => {
+  console.log('Connected to AWS IoT');
+  client.subscribe('walkingData', { qos: 0 });
+  //publishData();
+  // 키보드 입력 받기
+  rl.setPrompt('Enter the blood sugar level (press Ctrl+C to exit): ');
+  rl.prompt();
+  rl.on('line', function (bloodSugarLevel) {
+    // 현재 시간을 포함하여 혈당 데이터를 생성
+    const bloodSugarEntry = {
+      date: new Date().toISOString(),
+      value: parseFloat(bloodSugarLevel)
+    };
+
+    // 예시 데이터에 새로운 혈당 데이터 추가
+    const dataToSend = { ...dataTemplate };
+    dataToSend.bloodSugar.push(bloodSugarEntry);
+
+    // JSON 문자열로 변환
+    const message = JSON.stringify(dataToSend);
+
+    // 메시지 publish
+    client.publish('bloodSugar', message, { qos: 1 }, (error) => {
+      if (error) {
+        console.error('Failed to send message:', error);
+      } else {
+        console.log(`Blood sugar level '${bloodSugarLevel}' has been sent to the 'bloodSugar' topic`);
+      }
     });
+
+    rl.prompt(); // 다시 입력 받기
+  });
 });
 
-function sendIpToEc2(ipAddress) {
-    return axios.post('https://1ab2-59-6-127-176.ngrok-free.app:3000/receiveIp', { ip: ipAddress })
-        .then(response => console.log('IP sent to EC2:', response.data))
-        .catch(error => console.error('Failed to send IP to EC2:', error));
-}
 
 client.on('message', (topic, message) => {
     if (topic === 'walkingData') {
-        const data = JSON.parse(message.toString());
-        const { recommendedStep, currentStep } = data;
-
-        // 목표 걸음수보다 현재 걸음수가 적을 경우 알림
-        if (currentStep < recommendedStep) {
-            alertPin.writeSync(1); // 알림 켜기
-            setTimeout(() => alertPin.writeSync(0), 3000); // 3초 후 알림 끄기
-            //console.log('success');
-        }
+      const data = JSON.parse(message.toString());
+      if (data.needMoreStep === true) {
+        alertPin.writeSync(0); // Turn on the GPIO pin
+        setTimeout(() => {
+          alertPin.writeSync(1); // Turn off the GPIO pin after 3 seconds
+        }, 3000);
+      }
     }
 });
 
-function promptForBloodSugar() {
-    rl.question('Enter blood sugar reading: ', (input) => {
-        if (!isNaN(input)) {
-            bloodSugarReadings.push({ date: new Date().toISOString(), value: input });
-            console.log('Blood sugar reading saved:', input);
-        } else {
-            console.log('Invalid input. Please enter a numeric blood sugar reading.');
-        }
-        promptForBloodSugar(); // 계속해서 다음 입력을 받기
-    });
-}
+client.on('error', (error) => {
+  console.log('Connection failed:', error);
+});
 
-// 입력 프롬프트 시작
-promptForBloodSugar();
+
+//keep the Node.js process running even if the publishing function is idle
+process.on('SIGINT', function() {
+    console.log("Caught interrupt signal");
+    rl.close();
+    client.end(true, () => {
+      process.exit();
+    });
+});
+
+/*
+rl.on('line', function (data) {
+    // Enter를 누를 때마다 메시지 publish
+    const message = JSON.stringify({ value: data });
+    client.publish('bloodSugar', message, { qos: 1 }, (error) => {
+      if (error) {
+        console.error('Failed to send message:', error);
+      }
+    });
+
+    console.log(`Blood sugar level '${data}' has been sent to the 'bloodSugar' topic`);
+    rl.prompt(); // 다시 입력 받기
+  });
+*/
